@@ -1,0 +1,193 @@
+import pandas as pd
+import numpy as np
+from math import sqrt
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_absolute_error
+from sklearn.metrics import r2_score
+
+from sklearn.kernel_ridge import KernelRidge
+from sklearn.svm import SVR
+from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import learning_curve
+import pandas as pd
+import xgboost as xgb
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error
+import pickle
+from sklearn.metrics import mean_squared_error, r2_score
+d=pd.read_csv("E:/WinklerFragility/RegressionSDR/Python codes/alldata-Fragility.csv", index_col = 0)
+#d=pd.read_csv("E:/HSTC/Dr. Chang/paper-Ensieh/Python/ALL_MC - Copy.csv", index_col = 0)
+
+X = d[['Sa', 'h_H', 'N', 'Tssi/Tfix', 'H_B', 'DS']]
+y = d['Fragility']  
+
+
+
+# Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Train an XGBoost model
+model = xgb.XGBRegressor(n_estimators=100, learning_rate=0.05)
+model.fit(X_train, y_train)
+
+# Evaluate the model
+y_pred = model.predict(X_test)
+mse = mean_squared_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
+print(f"R² score: {r2}")
+print(f'Mean Squared Error: {mse}')
+
+# Save the model to a file
+with open('xgboost_fragility_model.pkl', 'wb') as f:
+    pickle.dump(model, f)
+import sys
+from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout, QMessageBox
+from PyQt5.QtGui import QPixmap
+import numpy as np
+import pickle
+
+# Load the trained XGBoost model
+with open('xgboost_fragility_model.pkl', 'rb') as f:
+    model = pickle.load(f)
+
+# Function to predict fragility using the XGBoost model
+def predict_fragility_with_xgboost(Sa, h_H, N, T_ratio, H_B, DS):
+    try:
+        # Prepare input features
+        input_features = np.array([[Sa, h_H, N, T_ratio, H_B, DS]])
+
+        # Predict using the loaded model
+        predicted_prob = model.predict(input_features)
+
+        return predicted_prob[0]  # Return the predicted probability
+
+    except Exception as e:
+        QMessageBox.critical(None, "Error", f"Error in prediction: {e}")
+
+# Main Window Class for the PyQt5 GUI
+class FragilityCurveApp(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.init_ui()
+
+    def init_ui(self):
+        # Main layout setup (VBox to arrange widgets vertically)
+        layout = QVBoxLayout()
+
+        # Title of the GUI
+        self.setWindowTitle('GUI for prediction of Sa(avg)-based fragility curve')
+
+        # Create a horizontal layout for centering the figure
+        center_layout = QHBoxLayout()
+        
+        # Label to display the figure
+        self.figure_label = QLabel(self)
+        self.figure_label.setFixedSize(300, 300)  # Set a fixed size for the figure label
+        center_layout.addStretch(1)  # Stretchable space before the figure
+        center_layout.addWidget(self.figure_label)  # Add the figure label to the center layout
+        center_layout.addStretch(1)  # Stretchable space after the figure
+        
+        layout.addLayout(center_layout)  # Add the centered layout to the main layout
+
+        # Create input form with labels and line edits
+        self.create_form(layout)
+
+        # Predict button for Fragility Curve
+        self.predict_button = QPushButton('Predict Fragility Curve', self)
+        self.predict_button.clicked.connect(self.on_predict)
+        layout.addWidget(self.predict_button)
+
+        # Output box to display the predicted probability
+        self.output_label = QLabel('Predicted Probability:')
+        self.output_box = QLineEdit(self)
+        self.output_box.setReadOnly(True)  # Make the output box read-only
+        layout.addWidget(self.output_label)
+        layout.addWidget(self.output_box)
+
+        # Set the layout and window dimensions (8x15 ratio as requested)
+        self.setLayout(layout)
+        self.setGeometry(100, 100, 400, 750)  # Adjusted size for larger GUI
+
+        # Automatically upload the figure at the specified path
+        self.auto_upload_figure(r"E:\WinklerFragility\RegressionSDR\Python codes\Frajility.JPG")
+
+    def create_form(self, layout):
+        # Define input fields and their labels with a horizontal layout for each (Label + Box)
+        # Saavg input (Average spectral acceleration)
+        self.add_input_row(layout, 'Sa (Average spectral acceleration):', 'saavg_input')
+
+        # h/H input (Ratio of story height to total height)
+        self.add_input_row(layout, 'h/H (Ratio of story height to total height):', 'h_H_input')
+
+        # N input (Number of stories)
+        self.add_input_row(layout, 'N (Number of stories):', 'N_input')
+
+        # Tssi/Tfix input (Period elongation)
+        self.add_input_row(layout, 'Tssi/Tfix (Period Elongation):', 'T_ratio_input')
+
+        # H/B input (Height to foundation width ratio)
+        self.add_input_row(layout, 'H/B (Ratio of height to foundation width):', 'H_B_input')
+
+        # DS input (Damage state as numerical value)
+        self.add_input_row(layout, 'DS (Damage State - Enter value: 1, 2, 3):', 'DS_input')
+
+    def add_input_row(self, layout, label_text, attr_name):
+        """ Helper function to add input fields with labels in a horizontal row """
+        row_layout = QHBoxLayout()
+
+        # Create label and input box
+        label = QLabel(label_text)
+        input_box = QLineEdit(self)
+        input_box.setFixedWidth(150)  # Set the width of the input box
+
+        # Add to the row layout
+        row_layout.addWidget(label)
+        row_layout.addWidget(input_box)
+
+        # Add the row to the main layout
+        layout.addLayout(row_layout)
+
+        # Dynamically create attributes for input boxes
+        setattr(self, attr_name, input_box)
+
+    def display_figure(self, file_path):
+        """ Function to display the uploaded figure in the GUI """
+        pixmap = QPixmap(file_path)
+        self.figure_label.setPixmap(pixmap.scaled(300, 300, aspectRatioMode=True))  # Scale the image
+
+    def auto_upload_figure(self, file_path):
+        """ Automatically upload and display a figure at the specified path """
+        try:
+            self.display_figure(file_path)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Could not load the figure: {e}")
+
+    def on_predict(self):
+        try:
+            # Retrieve input values
+            Saavg = float(self.saavg_input.text())
+            h_H = float(self.h_H_input.text())
+            N = int(self.N_input.text())
+            T_ratio = float(self.T_ratio_input.text())
+            H_B = float(self.H_B_input.text())
+            DS = int(self.DS_input.text())  # Read DS as a numerical value
+
+            # Predict fragility using the XGBoost model
+            predicted_prob = predict_fragility_with_xgboost(Saavg, h_H, N, T_ratio, H_B, DS)
+
+            # Display the predicted probability in the output box
+            self.output_box.setText(f"{predicted_prob:.2f}")
+
+        except ValueError:
+            QMessageBox.critical(self, "Input Error", "Please make sure all inputs are valid numbers.")
+
+# Main execution
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    window = FragilityCurveApp()
+    window.show()
+    sys.exit(app.exec_())
+
